@@ -1,2 +1,0 @@
-This file too came from the server.
-Except this one has a second line.
