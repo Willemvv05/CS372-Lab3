@@ -78,35 +78,69 @@ async def connect():
             print ("Too many attempts, closing connection")
             return
         print(intro)
-        return
 
-        # Get the filename to send from the user
-        filename = ""
-        while True:
-            filename = input("Enter filename to send: ")
-            if os.path.isfile("./client_data/" + filename):
+        # Enter command loop
+        synth_prompt = False
+        while (1):
+            # Recieve and print command prompt, send user response
+            if synth_prompt == False:
+                prompt = await receive_long_message(reader)
+            else:
+                synth_prompt = False
+                print("Enter Command: ")
+            command = input(prompt)
+            # Command Handlers
+            # List command
+            if command == "list":
+                await send_long_message(writer, command)
+                response = await receive_long_message(reader)
+                print (response)
+                continue
+            # Put command
+            elif len(command) > 2 and command[:3] == "put":
+                #Check that file exists
+                filename = command[4:]
+                if not os.path.isfile("./" + filename):
+                    print ("NAK Invalid File Name")
+                    synth_prompt = True
+                    continue
+                # If file exists, send put followed by filename and contents of file
+                await send_long_message(writer, "put " + filename)
+                with open(filename, 'r') as f:
+                    await send_long_message(writer, f.read())
+                # Recieve and print ACK
+                print(await receive_long_message(reader))
+            # Get Command
+            elif len(command) > 2 and command[:3] == "get":
+                # Send get command to server
+                await send_long_message(writer, command)
+                # Receive and print response
+                response = await receive_long_message(reader)
+                if (response[:3] == "NAK"):
+                    #If NAK, print and we're done
+                    print(response)
+                    continue
+                # Otherwise, download file and print ACK
+                filename = command[4:]
+                with open(filename, "x") as f:
+                    # Get file contents and write them to new file
+                    f.write(response[4:])
+                print("ACK")
+            # Remove Command
+            elif len(command) > 5 and command[:6] == "remove":
+                # Send command to server
+                await send_long_message(writer, command)
+                # Receive response and print
+                response = await receive_long_message(reader)
+                print (response)
+            # Close Command
+            elif len(command) > 4 and command[:5] == "close":
+                # Send command to server, receive ACK, and end loop
+                await send_long_message(writer, command)
+                print (await receive_long_message(reader))
                 break
-            print("Invalid filename.")
 
-        # Send the filename to the server
-        await send_long_message(writer, filename)
-
-        # Receive a response from the server
-        await recv_message(reader)
-
-
-        # Read in the contents of the file
-        with open("./client_data/" + filename, 'r') as f:
-            tosend = f.read()
-
-        # Send the file contents to the server
-        long_msg = f"{tosend}"
-
-        """
-        Part 2: Long Message Exchange Protocol
-        """
-        # TODO: Send message to the server by implementing `send_long_message` above.
-        await send_long_message(writer, long_msg)
+        return
 
     finally:
         writer.close()
@@ -123,7 +157,6 @@ async def main():
     #await connect(str(0).rjust(8, '0'))
 
     await asyncio.gather(*tasks)
-    print("done")
 
 # Run the `main()` function
 if __name__ == "__main__":
